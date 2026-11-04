@@ -1,4 +1,5 @@
 import gradio as gr
+from Controll.exe_fading import execute_fading
 
 # CSSで全体をスケールアップ ＋ ボタンを青色に変更
 CSS = """
@@ -68,21 +69,6 @@ def update_target_age_range(current_age):
 
     return gr.Dropdown(choices=choices, value=choices[-1] if choices else 0)
 
-
-def execute_fading(imagepath, current_age, gender, years_ahead):
-    if imagepath is None:
-        gr.Warning("顔写真を選択してください。")
-        return None
-
-    if gender is None:
-        gr.Warning("性別を選択してください。")
-        return None
-
-    # TODO: ここに実際の年齢変換処理を実装
-    result_image = imagepath
-    return result_image
-
-
 with gr.Blocks(title="Form1", css=CSS) as demo:
     with gr.Column(elem_id="main-col"):
         # ヘッダー
@@ -136,7 +122,7 @@ with gr.Blocks(title="Form1", css=CSS) as demo:
 
     execute_btn.click(
         fn=execute_fading,
-        inputs=[imagepath, current_age, gender, target_age],
+        inputs=[imagepath, current_age,  target_age,gender],
     )
 
 if __name__ == "__main__":
