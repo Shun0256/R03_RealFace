@@ -1,37 +1,21 @@
 import gradio as gr
 
 
-with gr.Blocks(title="20年後の顔") as app:
-
-    # 結果画像を表示する場所
-    result_image = gr.Image(
-        label="結果画像",
-        type="pil",
-        width=320,
-        height=320
-    )
-
-    # 比較ボタン
-    compare_button = gr.Button(
-        "比較",
-        size="lg"
-    )
-
-    # 年齢表示
-    age_text = gr.Markdown(
-        "### 20年後の顔"
-    )
-
-    # 下のボタン
+def create_result():
+    """結果画面の部品を作る。起動や生成処理はapp.pyが担当する。"""
+    age_text = gr.Markdown("### 生成結果")
     with gr.Row():
-
-        download_button = gr.DownloadButton(
-            "ダウンロード"
+        original_image = gr.Image(
+            label="変換前", type="filepath", width=320, height=320,
+            interactive=False, visible=False,
         )
-
-        retry_button = gr.Button(
-            "もう一回やる！"
+        result_image = gr.Image(
+            label="結果画像", type="filepath", width=320, height=320,
+            interactive=False,
         )
-
-
-app.launch()
+    compare_button = gr.Button("比較", size="lg")
+    with gr.Row():
+        download_button = gr.DownloadButton("ダウンロード")
+        retry_button = gr.Button("もう一回やる！")
+    return (result_image, original_image, age_text, compare_button,
+            download_button, retry_button)

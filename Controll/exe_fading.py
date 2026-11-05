@@ -2,6 +2,10 @@ from pathlib import Path
 from uuid import uuid4
 import math
 import subprocess
+import os
+import re
+from queue import Queue, Empty
+from threading import Thread
 
 from PIL import Image, ImageOps
 
@@ -112,7 +116,7 @@ def prepare_image(image_path):
 
 # ===== FADINGの実行 =====
 
-def run_fading(
+def run_fading_stream(
     image_path,
     current_age,
     target_age,
@@ -157,17 +161,63 @@ def run_fading(
         "--target_ages", str(target_age),
     ]
 
+    # tqdmの進捗はstderrに出るため、stdoutとまとめて読み取る。
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    process = subprocess.Popen(
+        command, cwd=str(FADING_DIR), stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+        errors="replace", bufsize=1, env=env,
+    )
+    messages = Queue()
+
+    def read_output():
+        try:
+            # text=Trueで、tqdmの\rによる更新も行単位で読める。
+            for line in process.stdout:
+                messages.put(line)
+        finally:
+            messages.put(None)
+
+    reader = Thread(target=read_output, daemon=True)
+    reader.start()
     try:
-        subprocess.run(
-            command,
-            cwd=str(FADING_DIR),
-            check=True,
-        )
-    except subprocess.CalledProcessError as error:
-        raise RuntimeError(
-            "FADINGの処理に失敗しました。"
-            "ターミナルに表示されたエラーを確認してください。"
-        ) from error
+        while True:
+            try:
+                line = messages.get(timeout=1)
+            except Empty:
+                # ログのない計算中も、Web側の経過時間を更新する。
+                yield {"kind": "heartbeat"}
+                continue
+            if line is None:
+                break
+            line = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", line).strip()
+            if line:
+                print(line, flush=True)
+                yield {"kind": "log", "text": line}
+        code = process.wait()
+        if code != 0:
+            raise RuntimeError(
+                f"FADINGの処理に失敗しました（終了コード：{code}）。"
+                "実行ログまたはターミナルを確認してください。"
+            )
+    finally:
+        # ジェネレーターが閉じられたときにも子プロセスを残さない。
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        reader.join(timeout=2)
+        process.stdout.close()
+
+
+def run_fading(image_path, current_age, target_age, output_dir, gender):
+    """従来と同じ呼び方も維持する。"""
+    for _ in run_fading_stream(image_path, current_age, target_age, output_dir, gender):
+        pass
 
 
 # ===== 生成画像の確認 =====
@@ -220,3 +270,20 @@ def execute_fading(
     )
 
     return result_path
+
+
+def execute_fading_stream(image_path, current_age, target_age, gender="male"):
+    """進捗イベントをyieldし、最後に結果画像のパスを通知する。"""
+    yield {"kind": "stage", "text": "入力内容を確認しています"}
+    image_path, current_age, target_age = check_input(
+        image_path, current_age, target_age,
+    )
+    yield {"kind": "stage", "text": "入力画像を準備しています"}
+    prepared_path, output_dir = prepare_image(image_path)
+    yield {"kind": "stage", "text": "FADINGを起動しています"}
+    yield from run_fading_stream(
+        prepared_path, current_age, target_age, output_dir, gender,
+    )
+    yield {"kind": "stage", "text": "生成画像を確認しています"}
+    result_path = find_result_image(prepared_path, target_age, output_dir)
+    yield {"kind": "result", "path": result_path, "original_path": str(prepared_path)}

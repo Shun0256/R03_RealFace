@@ -1,5 +1,4 @@
 import gradio as gr
-from Controll.exe_fading import execute_fading
 
 # CSSで全体をスケールアップ ＋ ボタンを青色に変更
 CSS = """
@@ -69,7 +68,8 @@ def update_target_age_range(current_age):
 
     return gr.Dropdown(choices=choices, value=choices[-1] if choices else 0)
 
-with gr.Blocks(title="Form1", css=CSS) as demo:
+def create_input():
+    """入力画面を作り、app.pyで使用する部品を返す。"""
     with gr.Column(elem_id="main-col"):
         # ヘッダー
         gr.Markdown("# Real Face", elem_id="header-title")
@@ -120,10 +120,4 @@ with gr.Blocks(title="Form1", css=CSS) as demo:
         outputs=target_age,
     )
 
-    execute_btn.click(
-        fn=execute_fading,
-        inputs=[imagepath, current_age,  target_age,gender],
-    )
-
-if __name__ == "__main__":
-    demo.launch()
+    return imagepath, current_age, target_age, gender, execute_btn
