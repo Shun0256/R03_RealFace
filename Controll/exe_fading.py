@@ -246,6 +246,9 @@ def execute_fading(
     gender="male",
 ):
     """入力確認・画像準備・FADING実行・結果取得を順番に行う。"""
+    if os.environ.get("REALFACE_BACKEND") == "colab":
+        from Controll.colab_client import execute_fading as execute_remote
+        return execute_remote(image_path, current_age, target_age, gender)
 
     image_path, current_age, target_age = check_input(
         image_path,
@@ -274,6 +277,10 @@ def execute_fading(
 
 def execute_fading_stream(image_path, current_age, target_age, gender="male"):
     """進捗イベントをyieldし、最後に結果画像のパスを通知する。"""
+    if os.environ.get("REALFACE_BACKEND") == "colab":
+        from Controll.colab_client import execute_fading_stream as execute_remote_stream
+        yield from execute_remote_stream(image_path, current_age, target_age, gender)
+        return
     yield {"kind": "stage", "text": "入力内容を確認しています"}
     image_path, current_age, target_age = check_input(
         image_path, current_age, target_age,
